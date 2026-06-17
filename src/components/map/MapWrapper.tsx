@@ -1,12 +1,22 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useFireCommandStore } from '@/store'
 
 const CommandMapInner = dynamic(() => import('./CommandMapInner'), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center bg-bg-primary">
       <span className="text-text-secondary text-sm">地图加载中...</span>
+    </div>
+  ),
+})
+
+const PlaybackMapInner = dynamic(() => import('./PlaybackMapInner'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center bg-bg-primary">
+      <span className="text-text-secondary text-sm">回放地图加载中...</span>
     </div>
   ),
 })
@@ -23,5 +33,11 @@ export interface MapWrapperProps {
 }
 
 export default function MapWrapper(props: MapWrapperProps) {
+  const isPlaybackEnabled = useFireCommandStore((s) => s.playback.isEnabled)
+
+  if (isPlaybackEnabled) {
+    return <PlaybackMapInner />
+  }
+
   return <CommandMapInner {...props} />
 }

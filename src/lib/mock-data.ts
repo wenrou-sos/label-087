@@ -162,6 +162,20 @@ export const incidents: Incident[] = [
     createdAt: '2026-06-17T08:55:00Z',
     updatedAt: '2026-06-17T08:55:00Z',
   },
+  {
+    id: 'inc-006',
+    location: { address: '上海市徐汇区衡山路500号', lat: 31.2080, lng: 121.4380 },
+    buildingType: 'other',
+    customBuildingType: '写字楼',
+    floor: 28,
+    isBasement: false,
+    trappedCount: 8,
+    trappedLocation: '28层会议室',
+    fireLevel: 'large',
+    status: 'resolved',
+    createdAt: '2026-06-15T14:20:00Z',
+    updatedAt: '2026-06-15T15:25:00Z',
+  },
 ]
 
 export const sensorData: SensorData[] = [

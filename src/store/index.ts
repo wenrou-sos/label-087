@@ -14,6 +14,10 @@ import type {
   PostIncidentReport,
   MapAnnotation,
 } from '@/lib/types'
+import type {
+  PlaybackTimeline,
+  PlaybackState,
+} from '@/lib/types/playback'
 import {
   incidents as mockIncidents,
   fireStations as mockStations,
@@ -66,6 +70,23 @@ interface FireCommandStore {
   mapAnnotations: MapAnnotation[]
   addAnnotation: (annotation: MapAnnotation) => void
   removeAnnotation: (id: string) => void
+
+  playback: {
+    isEnabled: boolean
+    isPlaying: boolean
+    currentTime: number
+    playbackSpeed: number
+    selectedIncidentId: string | null
+    timeline: PlaybackTimeline | null
+    currentState: PlaybackState | null
+  }
+
+  enablePlayback: (incidentId: string, timeline: PlaybackTimeline) => void
+  disablePlayback: () => void
+  setPlaybackPlaying: (isPlaying: boolean) => void
+  setPlaybackTime: (time: number) => void
+  setPlaybackSpeed: (speed: number) => void
+  setPlaybackState: (state: PlaybackState | null) => void
 
   _hydrated: boolean
   hydrate: () => void
@@ -237,6 +258,62 @@ export const useFireCommandStore = create<FireCommandStore>()((set, get) => ({
       return { mapAnnotations: next }
     }),
 
+  playback: {
+    isEnabled: false,
+    isPlaying: false,
+    currentTime: 0,
+    playbackSpeed: 1,
+    selectedIncidentId: null,
+    timeline: null,
+    currentState: null,
+  },
+
+  enablePlayback: (incidentId, timeline) =>
+    set(() => ({
+      playback: {
+        isEnabled: true,
+        isPlaying: false,
+        currentTime: 0,
+        playbackSpeed: 1,
+        selectedIncidentId: incidentId,
+        timeline,
+        currentState: null,
+      },
+    })),
+
+  disablePlayback: () =>
+    set(() => ({
+      playback: {
+        isEnabled: false,
+        isPlaying: false,
+        currentTime: 0,
+        playbackSpeed: 1,
+        selectedIncidentId: null,
+        timeline: null,
+        currentState: null,
+      },
+    })),
+
+  setPlaybackPlaying: (isPlaying) =>
+    set((state) => ({
+      playback: { ...state.playback, isPlaying },
+    })),
+
+  setPlaybackTime: (time) =>
+    set((state) => ({
+      playback: { ...state.playback, currentTime: time },
+    })),
+
+  setPlaybackSpeed: (speed) =>
+    set((state) => ({
+      playback: { ...state.playback, playbackSpeed: speed },
+    })),
+
+  setPlaybackState: (state) =>
+    set((s) => ({
+      playback: { ...s.playback, currentState: state },
+    })),
+
   _hydrated: false,
   hydrate: () => {
     if (get()._hydrated) return
@@ -284,3 +361,7 @@ export const useFireCommandStore = create<FireCommandStore>()((set, get) => ({
     set(updates)
   },
 }))
+
+if (typeof window !== 'undefined') {
+  ;(window as any).useFireCommandStore = useFireCommandStore
+}
