@@ -4,6 +4,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useFireCommandStore } from '@/store'
 import { getPlaybackStateAtTime, generatePlaybackTimeline } from '@/lib/playback-data'
 
+const TICK_INTERVAL_MS = 50
+
 export function usePlayback() {
   const playback = useFireCommandStore((s) => s.playback)
   const enablePlayback = useFireCommandStore((s) => s.enablePlayback)
@@ -17,65 +19,77 @@ export function usePlayback() {
   const stations = useFireCommandStore((s) => s.stations)
   const vehicles = useFireCommandStore((s) => s.vehicles)
 
-  const animationFrameRef = useRef<number | null>(null)
-  const lastUpdateRef = useRef<number>(0)
+  const intervalRef = useRef<number | null>(null)
+  const lastTickRef = useRef<number>(0)
 
   const resolvedIncidents = incidents.filter((i) => i.status === 'resolved')
 
-  const updateState = useCallback((time: number) => {
+  const updateStateForTime = useCallback((timeSec: number) => {
     const timeline = useFireCommandStore.getState().playback.timeline
     if (!timeline) return
-    const state = getPlaybackStateAtTime(timeline, time * 1000)
+    const state = getPlaybackStateAtTime(timeline, timeSec * 1000)
     setPlaybackState(state)
   }, [setPlaybackState])
 
-  const tick = useCallback((timestamp: number) => {
-    if (!playback.isPlaying || !playback.timeline) {
-      animationFrameRef.current = null
-      return
-    }
+  const tick = useCallback(() => {
+    const state = useFireCommandStore.getState()
+    const { isPlaying, currentTime, playbackSpeed, timeline } = state.playback
 
-    const now = timestamp
-    const delta = (now - lastUpdateRef.current) / 1000
-    lastUpdateRef.current = now
+    if (!isPlaying || !timeline) return
 
-    const nextTime = playback.currentTime + delta * playback.playbackSpeed
+    const now = performance.now()
+    const deltaSec = (now - lastTickRef.current) / 1000
+    lastTickRef.current = now
 
-    if (nextTime >= playback.timeline.duration) {
-      setPlaybackTime(playback.timeline.duration)
-      updateState(playback.timeline.duration)
+    const nextTime = currentTime + deltaSec * playbackSpeed
+
+    if (nextTime >= timeline.duration) {
+      const endTime = timeline.duration
+      setPlaybackTime(endTime)
+      updateStateForTime(endTime)
       setPlaybackPlaying(false)
-      animationFrameRef.current = null
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       return
     }
 
     setPlaybackTime(nextTime)
-    updateState(nextTime)
-
-    animationFrameRef.current = requestAnimationFrame(tick)
-  }, [playback.isPlaying, playback.timeline, playback.currentTime, playback.playbackSpeed, setPlaybackTime, setPlaybackPlaying, updateState])
+    updateStateForTime(nextTime)
+  }, [setPlaybackTime, setPlaybackPlaying, updateStateForTime])
 
   useEffect(() => {
     if (playback.isPlaying && playback.timeline) {
-      lastUpdateRef.current = performance.now()
-      animationFrameRef.current = requestAnimationFrame(tick)
+      lastTickRef.current = performance.now()
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      intervalRef.current = window.setInterval(tick, TICK_INTERVAL_MS)
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     }
 
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
     }
   }, [playback.isPlaying, playback.timeline, tick])
 
   const handlePlay = useCallback(() => {
-    if (playback.timeline && playback.currentTime >= playback.timeline.duration) {
+    const state = useFireCommandStore.getState()
+    if (state.playback.timeline && state.playback.currentTime >= state.playback.timeline.duration) {
       setPlaybackTime(0)
-      updateState(0)
+      updateStateForTime(0)
     }
+    lastTickRef.current = performance.now()
     setPlaybackPlaying(true)
-  }, [playback.timeline, playback.currentTime, setPlaybackTime, setPlaybackPlaying, updateState])
+  }, [setPlaybackTime, setPlaybackPlaying, updateStateForTime])
 
   const handlePause = useCallback(() => {
     setPlaybackPlaying(false)
@@ -83,15 +97,16 @@ export function usePlayback() {
 
   const handleSeek = useCallback((time: number) => {
     setPlaybackTime(time)
-    updateState(time)
-  }, [setPlaybackTime, updateState])
+    updateStateForTime(time)
+  }, [setPlaybackTime, updateStateForTime])
 
   const handleSpeedChange = useCallback((speed: number) => {
     setPlaybackSpeed(speed)
   }, [setPlaybackSpeed])
 
   const handleIncidentChange = useCallback((incidentId: string) => {
-    const incident = incidents.find((i) => i.id === incidentId)
+    const state = useFireCommandStore.getState()
+    const incident = state.incidents.find((i) => i.id === incidentId)
     if (!incident) return
 
     const firefighters = [
@@ -103,17 +118,21 @@ export function usePlayback() {
       { id: 'ff-006', name: '赵鹏', vehicleId: 'v-004' },
     ]
 
-    const timeline = generatePlaybackTimeline(incident, stations, vehicles, firefighters)
+    const timeline = generatePlaybackTimeline(incident, state.stations, state.vehicles, firefighters)
     const initialState = getPlaybackStateAtTime(timeline, 0)
     enablePlayback(incidentId, timeline)
     setPlaybackState(initialState)
-  }, [incidents, stations, vehicles, enablePlayback, setPlaybackState])
+  }, [enablePlayback, setPlaybackState])
 
   const handleEnablePlayback = useCallback((incidentId: string) => {
     handleIncidentChange(incidentId)
   }, [handleIncidentChange])
 
   const handleDisablePlayback = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
     disablePlayback()
   }, [disablePlayback])
 

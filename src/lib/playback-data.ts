@@ -282,6 +282,76 @@ export function generatePlaybackTimeline(
   const phase6Start = 55 * 60
   const phase6End = 65 * 60
 
+  const routeCache = new Map<string, GeoLocation[]>()
+
+  assignedVehicles.forEach((vehicle, idx) => {
+    const station = assignedStations[idx]
+    const routePoints = generateRoutePoints(station.location, incident.location)
+    routeCache.set(vehicle.id, routePoints)
+
+    events.push(
+      createEvent(
+        `${eventIdPrefix}-vehicle-${vehicle.id}-init`,
+        incident.id,
+        phase1Start,
+        'vehicle_move',
+        {
+          vehicleId: vehicle.id,
+          name: vehicle.name,
+          type: vehicle.type,
+          from: station.location,
+          to: station.location,
+          progress: 0,
+        } as VehicleMovePayload
+      )
+    )
+  })
+
+  ffs.forEach((ff) => {
+    const vehicle = assignedVehicles.find((v) => v.id === ff.vehicleId)
+    const station = vehicle
+      ? assignedStations[assignedVehicles.indexOf(vehicle)]
+      : assignedStations[0]
+    events.push(
+      createEvent(
+        `${eventIdPrefix}-ff-${ff.id}-init`,
+        incident.id,
+        phase1Start,
+        'firefighter_move',
+        {
+          firefighterId: ff.id,
+          name: ff.name,
+          from: station.location,
+          to: station.location,
+          progress: 0,
+          temperature: 36.5,
+          heartRate: 75,
+          gasConcentrations: { co: 0, co2: 400, h2s: 0, ch4: 0 },
+        } as FirefighterMovePayload
+      )
+    )
+  })
+
+  events.push(
+    createEvent(
+      `${eventIdPrefix}-status-000`,
+      incident.id,
+      phase1Start,
+      'status_change',
+      { status: 'pending' } as StatusChangePayload
+    )
+  )
+
+  events.push(
+    createEvent(
+      `${eventIdPrefix}-firelevel-000`,
+      incident.id,
+      phase1Start,
+      'fire_level_change',
+      { fireLevel: 'small' } as FireLevelChangePayload
+    )
+  )
+
   events.push(
     createEvent(
       `${eventIdPrefix}-status-001`,
@@ -301,8 +371,6 @@ export function generatePlaybackTimeline(
       { fireLevel: 'medium' } as FireLevelChangePayload
     )
   )
-
-  const routeCache = new Map<string, GeoLocation[]>()
 
   assignedVehicles.slice(0, 2).forEach((vehicle, idx) => {
     const station = assignedStations[idx]
